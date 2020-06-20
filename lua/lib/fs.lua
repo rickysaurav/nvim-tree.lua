@@ -153,4 +153,64 @@ function M.rename(node)
   refresh_tree()
 end
 
+--Path utilities taken from nvim-lsp
+local function exists(filename)
+  local stat = luv.fs_stat(filename)
+  return stat and stat.type or false
+end
+
+function M.is_dir(filename)
+  return exists(filename) == 'directory'
+end
+
+function M.is_file(filename)
+  return exists(filename) == 'file'
+end
+
+local function copy_recursive(src,dest)
+  if M.is_file(src) then
+    local file_name = vim.fn.fnamemodify(src,':t')
+    local success = luv.fs_copyfile(src,dest..'/'..file_name)
+    if not success then
+        api.nvim_err_writeln("failed to copy file_name : "..src.." ,dest : "..dest..'/'..file_name..' success: '..tostring(success))
+    end
+    return success or false
+  end
+  local dir_name = vim.fn.fnamemodify(src,':t')
+  local success = luv.fs_mkdir(dest..'/'..dir_name,493)
+  if not success then
+      api.nvim_err_writeln("failed to create directory :"..dest..'/'..dir_name..' success: '..tostring(success))
+  end
+  local handle = vim.loop.fs_scandir(src)
+  if type(handle) == 'string' then
+    return vim.api.nvim_err_writeln(handle)
+  end
+  while true do
+    local name, t = vim.loop.fs_scandir_next(handle)
+    if not name then break end
+    success = success and copy_recursive(src..'/'..name,dest..'/'..dir_name)
+  end
+  return success
+end
+
+function M.copy(src,node)
+  if not src or not node then
+    return api.nvim_err_writeln('Source or Destination is nil')
+  end
+  local dest = node.absolute_path
+  --handle cases if the directory ends in "/"
+  src = src:sub(-1)=='/' and src:sub(1,-2) or src
+  dest = dest:sub(-1)=='/' and dest:sub(1,-2) or dest
+  --convert filename to its directory
+  if M.is_file(dest) then
+    dest = vim.fn.fnamemodify(dest,':p:h')
+  end
+  local success = copy_recursive(src,dest)
+  if not success then
+    return api.nvim_err_writeln('Copy failed'..src..' to '..dest)
+  end
+  refresh_tree()
+  return success
+end
+
 return M

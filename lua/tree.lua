@@ -8,6 +8,8 @@ local api = vim.api
 
 local M = {}
 
+local clipboard = nil
+
 function M.toggle()
   if lib.win_open() then
     lib.close()
@@ -38,6 +40,12 @@ function M.on_keypress(mode)
     return fs.remove(node)
   elseif mode == 'rename' then
     return fs.rename(node)
+  elseif mode == 'copy' then
+    clipboard = node.absolute_path
+    api.nvim_out_write("Copied "..node.absolute_path.." to clipboard.\n")
+    return
+  elseif mode == 'paste' then
+    return fs.copy(clipboard, node)
   end
 
   if mode == 'preview' then
